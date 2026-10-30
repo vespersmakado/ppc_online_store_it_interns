@@ -96,7 +96,7 @@ export function BuyPage() {
   const hasProducts = BUY_PRODUCTS.some((product) => qtyOf(product.id) > 0);
   const quantitiesAreValid = BUY_PRODUCTS.every((product) => qtyOf(product.id) % 40 === 0);
 
-  const handleAccountLink = (event: FormEvent<HTMLFormElement>) => {
+  const handleAccountLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!username.trim() || !password) {
       setAccountMessage(
@@ -104,15 +104,23 @@ export function BuyPage() {
       );
       return;
     }
-    const result = authenticate(username, password);
-    setPassword("");
-    setAccountMessage(
-      result === "authenticated"
-        ? "Customer details verified successfully, you can proceed to view order."
-        : result === "disabled"
-          ? "The development demo account is disabled. Enable it only in a development environment to continue."
-          : "The development demo credentials were not recognised. No account has been linked.",
-    );
+    try {
+      const result = await authenticate(username, password);
+      setPassword("");
+      setAccountMessage(
+        result === "authenticated"
+          ? "Customer details verified successfully, you can proceed to view order."
+          : result === "disabled"
+            ? "Sign-in is temporarily unavailable. Please contact the site administrator."
+            : "The account details were not recognised. No account has been linked.",
+      );
+    } catch (error) {
+      console.error("Could not link the customer account on the Buy page.", error);
+      setPassword("");
+      setAccountMessage(
+        "Sign-in could not be completed. Please check your connection and try again.",
+      );
+    }
   };
 
   const handleNewAccount = () => {
@@ -549,8 +557,8 @@ export function BuyPage() {
                 Enter your account credentials to link your account to this cart.
               </p>
               <p className="mt-2 text-xs text-[#718096]">
-                Development-only demo access. Credentials are not saved; this is not real
-                authentication.
+                Your account is checked securely by the sign-in service. Your password is not saved
+                in this browser.
               </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm font-semibold text-[#40536A] sm:text-base">

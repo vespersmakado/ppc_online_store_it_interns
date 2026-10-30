@@ -1,9 +1,14 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   DemoAccountContext,
   type DemoAccountProfile,
   type DemoAccountResult,
 } from "./demo-account";
+import {
+  authenticateDemoAccount,
+  getDemoAccountSession,
+  logoutDemoAccount,
+} from "./demo-auth.functions";
 
 function restoreProfile(profile: DemoAccountProfile): DemoAccountProfile {
   try {
@@ -35,39 +40,15 @@ function restoreProfile(profile: DemoAccountProfile): DemoAccountProfile {
 }
 
 export function DemoAccountProvider({ children }: { children: ReactNode }) {
+  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState<"customer" | "staff" | null>(null);
   const [accountProfile, setAccountProfile] = useState<DemoAccountProfile | null>(null);
+  const authRequestVersion = useRef(0);
 
-  const authenticate = useCallback((username: string, password: string): DemoAccountResult => {
-    if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_AUTH === "false") {
-      setIsAuthenticated(false);
-      setRole(null);
-      setAccountProfile(null);
-      return "disabled";
-    }
-
-    const normalizedUsername = username.trim().toLowerCase();
-    if (normalizedUsername === "sales@ppc.co.zw" && password === "sales") {
-      setIsAuthenticated(true);
-      setRole("staff");
-      setAccountProfile(null);
-      return "staff-authenticated";
-    }
-    if (!(
-      (normalizedUsername === "vespers.makado" && password === "vespers.makado") ||
-      (normalizedUsername === "customer1@gmail.com" && password === "customer1")
-    )) {
-      setIsAuthenticated(false);
-      setRole(null);
-      setAccountProfile(null);
-      return "invalid";
-    }
-
-    setIsAuthenticated(true);
-    setRole("customer");
+  const setCustomerProfile = useCallback((username: string) => {
     const profile: DemoAccountProfile =
-      normalizedUsername === "vespers.makado"
+      username === "vespers.makado"
         ? {
             companyOrIndividual: "Vespers Makado",
             accountNumber: "1230004560098",
@@ -77,7 +58,7 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
             accountType: "individual",
             fields: {
               fullLegalName: "Vespers Makado",
-              demoLogin: normalizedUsername,
+              demoLogin: username,
               workEmailAddress: "vespers.makado@gmail.com",
               primaryPhoneNumber: "",
               nationalIdNumber: "",
@@ -93,7 +74,7 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
             phoneNumber: "",
             accountType: "company",
             fields: {
-              demoLogin: normalizedUsername,
+              demoLogin: username,
               registeredLegalName: "Customer 1 Demo Company",
               accountNumber: "DEMO-CUST-001",
               workEmailAddress: "customer1@gmail.com",
@@ -105,8 +86,67 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
             },
           };
     setAccountProfile(restoreProfile(profile));
-    return "authenticated";
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const requestVersion = authRequestVersion.current;
+    void getDemoAccountSession()
+      .then((session) => {
+        if (!active || requestVersion !== authRequestVersion.current) return;
+        if (session.role) {
+          setIsAuthenticated(true);
+          setRole(session.role);
+          if (session.role === "customer") setCustomerProfile(session.username);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Could not restore the demo account session.", error);
+      })
+      .finally(() => {
+        if (active && requestVersion === authRequestVersion.current) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [setCustomerProfile]);
+
+  const authenticate = useCallback(
+    async (username: string, password: string): Promise<DemoAccountResult> => {
+      const requestVersion = ++authRequestVersion.current;
+      const response = await authenticateDemoAccount({ data: { username, password } });
+      if (requestVersion !== authRequestVersion.current) return "invalid";
+      if (response.result === "disabled") {
+        setIsAuthenticated(false);
+        setRole(null);
+        setAccountProfile(null);
+        setIsLoading(false);
+        return "disabled";
+      }
+      if (response.result === "invalid") {
+        setIsAuthenticated(false);
+        setRole(null);
+        setAccountProfile(null);
+        setIsLoading(false);
+        return "invalid";
+      }
+      if (!response.role) {
+        setIsAuthenticated(false);
+        setRole(null);
+        setAccountProfile(null);
+        setIsLoading(false);
+        return "invalid";
+      }
+
+      setIsAuthenticated(true);
+      setRole(response.role);
+      if (response.role === "customer") setCustomerProfile(response.username);
+      else setAccountProfile(null);
+      setIsLoading(false);
+      return response.result;
+    },
+    [setCustomerProfile],
+  );
 
   const updateProfile = useCallback((profile: DemoAccountProfile) => {
     window.localStorage.setItem(
@@ -115,15 +155,24 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
     );
     setAccountProfile(profile);
   }, []);
-  const signOut = useCallback(() => {
-    setIsAuthenticated(false);
-    setRole(null);
-    setAccountProfile(null);
+  const signOut = useCallback(async () => {
+    ++authRequestVersion.current;
+    try {
+      await logoutDemoAccount();
+    } catch (error) {
+      console.error("Could not end the demo account session on the server.", error);
+    } finally {
+      setIsAuthenticated(false);
+      setRole(null);
+      setAccountProfile(null);
+      setIsLoading(false);
+    }
   }, []);
 
   return (
     <DemoAccountContext.Provider
       value={{
+        isLoading,
         isAuthenticated,
         role,
         isCustomerAuthenticated: isAuthenticated && role === "customer",

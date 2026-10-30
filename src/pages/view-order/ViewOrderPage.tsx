@@ -811,6 +811,7 @@ if (import.meta.vitest) {
         root.render(
           <DemoAccountContext.Provider
             value={{
+              isLoading: false,
               isAuthenticated,
               role: isAuthenticated ? "customer" : null,
               isCustomerAuthenticated: isAuthenticated,
@@ -826,9 +827,9 @@ if (import.meta.vitest) {
                     fields: {},
                   }
                 : null,
-              authenticate: () => "authenticated",
+              authenticate: async () => "authenticated",
               updateProfile: () => {},
-              signOut: () => {},
+              signOut: async () => {},
             }}
           >
             <CartProvider>

@@ -14,14 +14,15 @@ export type DemoAccountProfile = {
 };
 
 export type DemoAccountContextValue = {
+  isLoading: boolean;
   isAuthenticated: boolean;
   role: DemoAccountRole;
   isCustomerAuthenticated: boolean;
   isStaffAuthenticated: boolean;
   accountProfile: DemoAccountProfile | null;
-  authenticate: (username: string, password: string) => DemoAccountResult;
+  authenticate: (username: string, password: string) => Promise<DemoAccountResult>;
   updateProfile: (profile: DemoAccountProfile) => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 };
 
 export const DemoAccountContext = createContext<DemoAccountContextValue | null>(null);

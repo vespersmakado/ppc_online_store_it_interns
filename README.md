@@ -23,9 +23,18 @@ npm i
 npm run dev
 ```
 
-## Staff sales portal demo
+## Demonstration account sign-in
 
-The sales staff portal is available at `/staff` in development. Sign in with `sales@ppc.co.zw` and password `sales`; demo sign-in is disabled outside development and when `VITE_ENABLE_DEMO_AUTH=false`.
+The customer and Sales Department accounts are authenticated by server functions. Passwords are not included in the frontend bundle. Successful sign-in uses a signed, seven-day `HttpOnly`, `Secure`, `SameSite=Lax` session cookie; staff and customer roles are restored after refresh.
+
+To enable the accounts on Vercel, add these **server-only** environment variables for the Production environment (and Preview if needed), then redeploy:
+
+- `PPC_DEMO_CUSTOMER_PASSWORD` — password for `customer1@gmail.com`.
+- `PPC_DEMO_STAFF_PASSWORD` — password for `sales@ppc.co.zw`.
+- `PPC_DEMO_VESPERS_PASSWORD` — password for the existing `vespers.makado` customer account.
+- `PPC_DEMO_SESSION_SECRET` — a unique random secret of at least 32 characters. Generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`.
+
+Do not prefix these variables with `VITE_`. Sign-in returns unavailable until all four values are configured. Never commit their values to the repository.
 
 The staff workspace, quotation decisions, order updates, price changes, and related demo data are stored in this browser. SAP, ZIMRA, banking, email, and transport tracking are not connected to external services.
 

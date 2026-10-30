@@ -395,7 +395,8 @@ function CustomerSidebar({ path, onNavigate }: { path: string; onNavigate?: () =
 }
 
 export function CustomerPortalPage({ view }: { view: PortalView }) {
-  const { isCustomerAuthenticated, accountProfile, signOut, updateProfile } = useDemoAccount();
+  const { isLoading, isCustomerAuthenticated, accountProfile, signOut, updateProfile } =
+    useDemoAccount();
   const { bags, restore } = useCart();
   const navigate = useNavigate();
   const path = useRouterState({ select: (state) => state.location.pathname });
@@ -491,6 +492,7 @@ export function CustomerPortalPage({ view }: { view: PortalView }) {
     }
   }, [estimates]);
 
+  if (isLoading) return null;
   if (!isCustomerAuthenticated) return <Navigate to="/login" replace />;
 
   const unreadCount = notifications.filter((item) => !item.read).length;
@@ -582,9 +584,9 @@ export function CustomerPortalPage({ view }: { view: PortalView }) {
       .includes(search.toLowerCase());
   });
 
-  const handleSignOut = () => {
-    signOut();
-    void navigate({ to: "/login" });
+  const handleSignOut = async () => {
+    await signOut();
+    await navigate({ to: "/login" });
   };
 
   const toggleNotification = (id: string) => {

@@ -15,7 +15,7 @@ export function LoginPage() {
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setStatus("");
@@ -30,23 +30,27 @@ export function LoginPage() {
       return;
     }
 
-    const result = authenticate(usernameValue, passwordValue);
-    if (result === "authenticated") {
-      void navigate({ to: "/customer" });
+    try {
+      const result = await authenticate(usernameValue, passwordValue);
+      if (result === "authenticated") {
+        await navigate({ to: "/customer" });
+        return;
+      }
+      if (result === "staff-authenticated") {
+        await navigate({ to: "/staff" });
+        return;
+      }
+      setStatus(
+        result === "disabled"
+          ? "Sign-in is temporarily unavailable. Please contact the site administrator."
+          : "The username or password is incorrect.",
+      );
+    } catch (error) {
+      console.error("Could not sign in to the PPC demo account.", error);
+      setStatus("Sign-in could not be completed. Please check your connection and try again.");
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-    if (result === "staff-authenticated") {
-      void navigate({ to: "/staff" });
-      setIsSubmitting(false);
-      return;
-    }
-    setStatus(
-      result === "disabled"
-        ? "Development demo sign-in is only available in a development environment."
-        : "The username or password is incorrect.",
-    );
-    setIsSubmitting(false);
   };
 
   return (
@@ -232,12 +236,9 @@ export function LoginPage() {
                 {isSubmitting ? "Signing in..." : "Sign In"}
               </Button>
 
-              {import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEMO_AUTH !== "false" && (
-                <p className="text-sm leading-5 text-[#718096]">
-                  Development-only demo sign-in is enabled for the customer and Sales Department
-                  portals. Demo passwords are not displayed here.
-                </p>
-              )}
+              <p className="text-sm leading-5 text-[#718096]">
+                Sign in with your customer or Sales Department account.
+              </p>
 
               {status && (
                 <p

@@ -505,7 +505,7 @@ function readStaffPreferences() {
 }
 
 export function StaffPortalPage({ view, recordId }: Props) {
-  const { isStaffAuthenticated, signOut } = useDemoAccount();
+  const { isLoading, isStaffAuthenticated, signOut } = useDemoAccount();
   const navigate = useNavigate();
   const path = useRouterState({ select: (state) => state.location.pathname });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -601,6 +601,7 @@ export function StaffPortalPage({ view, recordId }: Props) {
     }
   }, []);
 
+  if (isLoading) return null;
   if (!isStaffAuthenticated) return <Navigate to="/login" replace />;
 
   const unreadCount = data.notifications.filter((item) => !item.read).length;
@@ -638,9 +639,9 @@ export function StaffPortalPage({ view, recordId }: Props) {
     next = "",
     reason = "",
   ) => [withAudit(current, action, type, reference, previous, next, reason), ...current.audit];
-  const protectSignOut = () => {
-    signOut();
-    void navigate({ to: "/login" });
+  const protectSignOut = async () => {
+    await signOut();
+    await navigate({ to: "/login" });
   };
   const createOrder = (quote: StaffQuotation) => {
     if (quote.orderId || data.orders.some((order) => order.quotationId === quote.id)) {
