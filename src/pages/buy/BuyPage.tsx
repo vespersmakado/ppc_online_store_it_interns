@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -72,11 +72,9 @@ export function BuyPage() {
   const navigate = useNavigate();
   const { bags, method, methodSelected, qtyOf, setMethod, setQty, priceChanges, refreshPrices } =
     useCart();
-  const { isCustomerAuthenticated, authenticate } = useDemoAccount();
+  const { isCustomerAuthenticated, enterDemoMode } = useDemoAccount();
   const [search, setSearch] = useState("");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [accountMessage, setAccountMessage] = useState("");
   const [proceedMessage, setProceedMessage] = useState("");
   const selectedMethod = methodSelected ? method : null;
@@ -96,30 +94,13 @@ export function BuyPage() {
   const hasProducts = BUY_PRODUCTS.some((product) => qtyOf(product.id) > 0);
   const quantitiesAreValid = BUY_PRODUCTS.every((product) => qtyOf(product.id) % 40 === 0);
 
-  const handleAccountLink = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!username.trim() || !password) {
-      setAccountMessage(
-        "Enter both your username and password to link the development demo account.",
-      );
-      return;
-    }
+  const handleAccountLink = () => {
     try {
-      const result = await authenticate(username, password);
-      setPassword("");
-      setAccountMessage(
-        result === "authenticated"
-          ? "Customer details verified successfully, you can proceed to view order."
-          : result === "disabled"
-            ? "Sign-in is temporarily unavailable. Please contact the site administrator."
-            : "The account details were not recognised. No account has been linked.",
-      );
+      enterDemoMode("customer");
+      setAccountMessage("Customer demo account selected. You can proceed to view your order.");
     } catch (error) {
-      console.error("Could not link the customer account on the Buy page.", error);
-      setPassword("");
-      setAccountMessage(
-        "Sign-in could not be completed. Please check your connection and try again.",
-      );
+      console.error("Could not enter the customer demo account on the Buy page.", error);
+      setAccountMessage("The customer demo account could not be selected. Please try again.");
     }
   };
 
@@ -545,61 +526,26 @@ export function BuyPage() {
           </fieldset>
 
           {accountType === "existing" && (
-            <form
-              onSubmit={handleAccountLink}
-              noValidate
-              className="mt-5 rounded-2xl border border-[#E5EAF0] bg-white p-6 shadow-[0_5px_20px_rgba(23,33,43,0.04)] sm:p-8"
-            >
+            <section className="mt-5 rounded-2xl border border-[#E5EAF0] bg-white p-6 shadow-[0_5px_20px_rgba(23,33,43,0.04)] sm:p-8">
               <h3 className="text-lg font-extrabold text-[#17212B] sm:text-xl">
-                Link an existing account
+                Continue with an existing account
               </h3>
               <p className="mt-2 text-sm text-[#718096] sm:text-base">
-                Enter your account credentials to link your account to this cart.
+                Continue with the customer portal without entering a password.
               </p>
-              <p className="mt-2 text-xs text-[#718096]">
-                Your account is checked securely by the sign-in service. Your password is not saved
-                in this browser.
-              </p>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-semibold text-[#40536A] sm:text-base">
-                  Username
-                  <input
-                    type="text"
-                    autoComplete="username"
-                    value={username}
-                    onChange={(event) => setUsername(event.currentTarget.value)}
-                    className="mt-2 h-12 w-full rounded-lg border border-[#E5EAF0] bg-white px-4 text-base font-normal text-[#17212B] outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/15"
-                    required
-                  />
-                </label>
-                <label className="block text-sm font-semibold text-[#40536A] sm:text-base">
-                  Password
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.currentTarget.value)}
-                    className="mt-2 h-12 w-full rounded-lg border border-[#E5EAF0] bg-white px-4 text-base font-normal text-[#17212B] outline-none focus:border-[#E30613] focus:ring-2 focus:ring-[#E30613]/15"
-                    required
-                  />
-                </label>
-              </div>
               <button
-                type="submit"
+                type="button"
+                onClick={handleAccountLink}
                 className="mt-6 inline-flex min-h-14 items-center justify-center rounded-lg bg-[#E30613] px-6 text-base font-bold text-white transition-colors hover:bg-[#C90016] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17212B]"
               >
-                Find and link account
+                Proceed in demo mode
               </button>
               {accountMessage && (
                 <p role="alert" className="mt-4 text-sm font-medium text-[#C90016]">
                   {accountMessage}
                 </p>
               )}
-              <p className="mt-4 text-sm leading-relaxed text-[#718096] sm:text-base">
-                Account verification is not connected to a server yet. Credentials are not saved or
-                verified in this browser.
-              </p>
-            </form>
+            </section>
           )}
 
           {accountType === "new" && (
@@ -701,19 +647,6 @@ if (import.meta.vitest) {
     if (!element) throw new Error("Expected interactive element was not rendered");
     await act(async () => {
       element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-  }
-
-  async function updateInput(
-    input: HTMLInputElement | null,
-    value: string,
-    act: typeof import("react").act,
-  ) {
-    if (!input) throw new Error("Expected input was not rendered");
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-      setter?.call(input, value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
 
@@ -831,60 +764,22 @@ if (import.meta.vitest) {
       );
     });
 
-    it("does not claim account verification when no backend is configured", async () => {
+    it("opens customer demo mode without asking for account credentials", async () => {
       mounted = await mountBuyPage();
       const { container, act } = mounted;
 
       await click(container.querySelector('input[name="account-type"][value="existing"]'), act);
-      await updateInput(container.querySelector('input[autocomplete="username"]'), "customer", act);
-      await updateInput(
-        container.querySelector('input[autocomplete="current-password"]'),
-        "not-saved",
-        act,
+      const demoButton = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent?.trim() === "Proceed in demo mode",
       );
-      const form = container.querySelector("form");
-      if (!form) throw new Error("Existing-account form was not rendered");
-      await act(async () =>
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
-      );
-
-      expect(container.textContent).toContain("development demo credentials were not recognised");
-      expect(container.querySelector('input[autocomplete="current-password"]')).toHaveValue("");
-    });
-
-    it("recognises the development demo credentials without storing the password", async () => {
-      window.localStorage.setItem(
-        "ppc-zw-cart-v1",
-        JSON.stringify({
-          items: { "surecem-32-5n": 40 },
-          method: "collect",
-          methodSelected: true,
-        }),
-      );
-      mounted = await mountBuyPage();
-      const { container, act } = mounted;
-
-      await click(container.querySelector('input[name="account-type"][value="existing"]'), act);
-      await updateInput(
-        container.querySelector('input[autocomplete="username"]'),
-        "vespers.makado",
-        act,
-      );
-      await updateInput(
-        container.querySelector('input[autocomplete="current-password"]'),
-        "vespers.makado",
-        act,
-      );
-      const form = container.querySelector("form");
-      if (!form) throw new Error("Existing-account form was not rendered");
-      await act(async () =>
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
-      );
+      await click(demoButton ?? null, act);
 
       expect(container.textContent).toContain(
-        "Customer details verified successfully, you can proceed to view order.",
+        "Customer demo account selected. You can proceed to view your order.",
       );
-      expect(container.querySelector('input[autocomplete="current-password"]')).toHaveValue("");
+      expect(window.localStorage.getItem("ppc-demo-account-session-v1")).toContain(
+        '"role":"customer"',
+      );
     });
   });
 }

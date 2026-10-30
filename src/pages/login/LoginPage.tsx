@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, ShieldCheck, Truck } from "lucide-react";
 import { useDemoAccount } from "@/features/account/demo-account";
@@ -9,45 +9,21 @@ import { Label } from "@/components/ui/label";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { authenticate } = useDemoAccount();
+  const { enterDemoMode } = useDemoAccount();
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleDemoMode = async (role: "customer" | "staff") => {
     setIsSubmitting(true);
     setStatus("");
 
-    const formData = new FormData(event.currentTarget);
-    const usernameValue = String(formData.get("username") ?? "").trim();
-    const passwordValue = String(formData.get("password") ?? "");
-
-    if (!usernameValue || !passwordValue) {
-      setStatus("Please enter both your username/email and password.");
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
-      const result = await authenticate(usernameValue, passwordValue);
-      if (result === "authenticated") {
-        await navigate({ to: "/customer" });
-        return;
-      }
-      if (result === "staff-authenticated") {
-        await navigate({ to: "/staff" });
-        return;
-      }
-      setStatus(
-        result === "disabled"
-          ? "Sign-in is temporarily unavailable. Please contact the site administrator."
-          : "The username or password is incorrect.",
-      );
+      enterDemoMode(role);
+      await navigate({ to: role === "staff" ? "/staff" : "/customer" });
     } catch (error) {
-      console.error("Could not sign in to the PPC demo account.", error);
-      setStatus("Sign-in could not be completed. Please check your connection and try again.");
+      console.error("Could not enter the PPC demo portal.", error);
+      setStatus("The demo portal could not be opened. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -160,7 +136,7 @@ export function LoginPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+            <div className="mt-7 space-y-5">
               <div>
                 <Label htmlFor="username" className="text-base font-semibold text-[#17212B]">
                   Username or email address
@@ -214,31 +190,30 @@ export function LoginPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <label className="flex items-center gap-2 text-base text-[#40536A]">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(event) => setRememberMe(event.target.checked)}
-                    className="size-4 accent-[#E30613]"
-                  />
-                  Remember me
-                </label>
-              </div>
+              <p className="text-sm leading-5 text-[#718096]">
+                Choose a portal below to continue without a password.
+              </p>
 
               <Button
-                type="submit"
+                type="button"
                 variant="hero"
                 size="lg"
                 disabled={isSubmitting}
-                className="mt-6 h-12 w-full rounded-[7px] text-lg font-bold normal-case tracking-normal"
+                onClick={() => void handleDemoMode("customer")}
+                className="mt-2 h-12 w-full rounded-[7px] text-lg font-bold normal-case tracking-normal"
               >
-                {isSubmitting ? "Signing in..." : "Sign In"}
+                {isSubmitting ? "Opening portal..." : "Proceed in demo mode"}
               </Button>
-
-              <p className="text-sm leading-5 text-[#718096]">
-                Sign in with your customer or Sales Department account.
-              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={isSubmitting}
+                onClick={() => void handleDemoMode("staff")}
+                className="h-12 w-full rounded-[7px] text-lg font-bold normal-case tracking-normal"
+              >
+                Proceed to Sales Department
+              </Button>
 
               {status && (
                 <p
@@ -248,7 +223,7 @@ export function LoginPage() {
                   {status}
                 </p>
               )}
-            </form>
+            </div>
 
             <div className="mt-6 border-t border-[#E5EAF0] pt-5 text-center">
               <p className="text-base text-[#718096]">
@@ -291,8 +266,8 @@ if (import.meta.vitest) {
         "Username or email address",
         "Password",
         "Forgot password?",
-        "Remember me",
-        "Sign In",
+        "Proceed in demo mode",
+        "Proceed to Sales Department",
         "Create an account",
       ]) {
         expect(html).toContain(text);
@@ -307,7 +282,7 @@ if (import.meta.vitest) {
       expect(html).toContain('aria-label="Show password"');
     });
 
-    it("supports toggling password visibility and demonstrates front-end-only validation", async () => {
+    it("supports toggling password visibility and presents password-free demo access", async () => {
       const [{ act }, { createRoot }, { DemoAccountProvider }] = await Promise.all([
         import("react"),
         import("react-dom/client"),
@@ -329,10 +304,8 @@ if (import.meta.vitest) {
         const visibilityButton = container.querySelector<HTMLButtonElement>(
           'button[aria-label="Show password"]',
         );
-        const form = container.querySelector("form");
-
-        if (!password || !visibilityButton || !form) {
-          throw new Error("Expected login form controls to render.");
+        if (!password || !visibilityButton) {
+          throw new Error("Expected login controls to render.");
         }
 
         expect(password.type).toBe("password");
@@ -340,12 +313,8 @@ if (import.meta.vitest) {
         expect(container.querySelector<HTMLInputElement>("#password")?.type).toBe("text");
         expect(container.querySelector('button[aria-label="Hide password"]')).not.toBeNull();
 
-        await act(async () =>
-          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
-        );
-        expect(container.textContent).toContain(
-          "Please enter both your username/email and password.",
-        );
+        expect(container.textContent).toContain("Proceed in demo mode");
+        expect(container.textContent).toContain("Proceed to Sales Department");
       } finally {
         await act(async () => root.unmount());
         container.remove();

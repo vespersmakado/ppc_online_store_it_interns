@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
 
-export type DemoAccountResult = "authenticated" | "staff-authenticated" | "invalid" | "disabled";
 export type DemoAccountRole = "customer" | "staff" | null;
 
 export type DemoAccountProfile = {
@@ -20,7 +19,7 @@ export type DemoAccountContextValue = {
   isCustomerAuthenticated: boolean;
   isStaffAuthenticated: boolean;
   accountProfile: DemoAccountProfile | null;
-  authenticate: (username: string, password: string) => Promise<DemoAccountResult>;
+  enterDemoMode: (role: Exclude<DemoAccountRole, null>) => void;
   updateProfile: (profile: DemoAccountProfile) => void;
   signOut: () => Promise<void>;
 };

@@ -1,14 +1,32 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   DemoAccountContext,
   type DemoAccountProfile,
-  type DemoAccountResult,
 } from "./demo-account";
-import {
-  authenticateDemoAccount,
-  getDemoAccountSession,
-  logoutDemoAccount,
-} from "./demo-auth.functions";
+
+const SESSION_KEY = "ppc-demo-account-session-v1";
+
+function demoIdentity(username: string) {
+  const normalized = username.trim().toLowerCase();
+  if (normalized === "sales@ppc.co.zw") {
+    return { username: normalized, role: "staff" as const };
+  }
+  if (
+    normalized === "customer1@gmail.com" ||
+    normalized === "vespers.makado" ||
+    normalized === "vespers.makado@gmail.com"
+  ) {
+    return {
+      username: normalized === "vespers.makado@gmail.com" ? "vespers.makado" : normalized,
+      role: "customer" as const,
+    };
+  }
+  return null;
+}
+
+function demoUsernameForRole(role: "customer" | "staff") {
+  return role === "staff" ? "sales@ppc.co.zw" : "customer1@gmail.com";
+}
 
 function restoreProfile(profile: DemoAccountProfile): DemoAccountProfile {
   try {
@@ -44,7 +62,6 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState<"customer" | "staff" | null>(null);
   const [accountProfile, setAccountProfile] = useState<DemoAccountProfile | null>(null);
-  const authRequestVersion = useRef(0);
 
   const setCustomerProfile = useCallback((username: string) => {
     const profile: DemoAccountProfile =
@@ -89,64 +106,42 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    const requestVersion = authRequestVersion.current;
-    void getDemoAccountSession()
-      .then((session) => {
-        if (!active || requestVersion !== authRequestVersion.current) return;
-        if (session.role) {
-          setIsAuthenticated(true);
-          setRole(session.role);
-          if (session.role === "customer") setCustomerProfile(session.username);
+    try {
+      const rawSession = window.localStorage.getItem(SESSION_KEY);
+      if (rawSession) {
+        const parsed: unknown = JSON.parse(rawSession);
+        if (parsed && typeof parsed === "object" && "username" in parsed) {
+          const identity = demoIdentity(String(parsed.username));
+          if (identity) {
+            setIsAuthenticated(true);
+            setRole(identity.role);
+            if (identity.role === "customer") setCustomerProfile(identity.username);
+          } else {
+            window.localStorage.removeItem(SESSION_KEY);
+          }
+        } else {
+          window.localStorage.removeItem(SESSION_KEY);
         }
-      })
-      .catch((error: unknown) => {
-        console.error("Could not restore the demo account session.", error);
-      })
-      .finally(() => {
-        if (active && requestVersion === authRequestVersion.current) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+      }
+    } catch (error) {
+      console.error("Could not restore the local demo portal selection.", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [setCustomerProfile]);
 
-  const authenticate = useCallback(
-    async (username: string, password: string): Promise<DemoAccountResult> => {
-      const requestVersion = ++authRequestVersion.current;
-      const response = await authenticateDemoAccount({ data: { username, password } });
-      if (requestVersion !== authRequestVersion.current) return "invalid";
-      if (response.result === "disabled") {
-        setIsAuthenticated(false);
-        setRole(null);
-        setAccountProfile(null);
-        setIsLoading(false);
-        return "disabled";
-      }
-      if (response.result === "invalid") {
-        setIsAuthenticated(false);
-        setRole(null);
-        setAccountProfile(null);
-        setIsLoading(false);
-        return "invalid";
-      }
-      if (!response.role) {
-        setIsAuthenticated(false);
-        setRole(null);
-        setAccountProfile(null);
-        setIsLoading(false);
-        return "invalid";
-      }
-
-      setIsAuthenticated(true);
-      setRole(response.role);
-      if (response.role === "customer") setCustomerProfile(response.username);
-      else setAccountProfile(null);
-      setIsLoading(false);
-      return response.result;
-    },
-    [setCustomerProfile],
-  );
+  const enterDemoMode = useCallback((demoRole: "customer" | "staff") => {
+    const identity = {
+      username: demoUsernameForRole(demoRole),
+      role: demoRole,
+    };
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(identity));
+    setIsAuthenticated(true);
+    setRole(demoRole);
+    if (demoRole === "customer") setCustomerProfile(identity.username);
+    else setAccountProfile(null);
+    setIsLoading(false);
+  }, [setCustomerProfile]);
 
   const updateProfile = useCallback((profile: DemoAccountProfile) => {
     window.localStorage.setItem(
@@ -156,11 +151,10 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
     setAccountProfile(profile);
   }, []);
   const signOut = useCallback(async () => {
-    ++authRequestVersion.current;
     try {
-      await logoutDemoAccount();
+      window.localStorage.removeItem(SESSION_KEY);
     } catch (error) {
-      console.error("Could not end the demo account session on the server.", error);
+      console.error("Could not clear the local demo portal selection.", error);
     } finally {
       setIsAuthenticated(false);
       setRole(null);
@@ -178,7 +172,7 @@ export function DemoAccountProvider({ children }: { children: ReactNode }) {
         isCustomerAuthenticated: isAuthenticated && role === "customer",
         isStaffAuthenticated: isAuthenticated && role === "staff",
         accountProfile,
-        authenticate,
+        enterDemoMode,
         updateProfile,
         signOut,
       }}

@@ -827,7 +827,7 @@ if (import.meta.vitest) {
                     fields: {},
                   }
                 : null,
-              authenticate: async () => "authenticated",
+              enterDemoMode: () => {},
               updateProfile: () => {},
               signOut: async () => {},
             }}
